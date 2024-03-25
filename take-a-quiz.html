@@ -3,9 +3,158 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Document</title>
+  <title>Take a Quiz</title>
+  <link rel="stylesheet" href="navbar.css" />
+  <link rel="stylesheet" href="general.css" />
+  <link rel="stylesheet" href="cards.css" />
+  <style>
+    /* Add your custom styles here */
+    .hidden {
+      display: none;
+    }
+  </style>
 </head>
 <body>
+  <!-- Navigation Bar -->
+  <div class="navbar" id="navbar">
+    <ul class="topnav">
+      <li><a href="index.html">Home</a></li>
+      <li><a href="add-question.html">Add questions</a></li>
+      <li><a href="make-a-quiz.html">Create a quiz</a></li>
+      <li><a class="active" href="take-a-quiz.html">Take a quiz</a></li>
+      <li class="right"><a href="#about">About</a></li>
+    </ul>
+  </div>
+
+  <!-- Quiz List Container -->
+  <div class="container" id="quizContainer">
+    <div class="left-column" id="quizList">
+      <!-- Quiz list will be displayed here -->
+    </div>
+  </div>
+
+  <!-- Quiz Questions Container -->
+  <div class="container hidden" id="questionContainer">
+    <div class="right-column" id="quizQuestions">
+      <!-- Quiz questions will be displayed here -->
+    </div>
+  </div>
+
+  <script>
+    let host = "http://localhost:8080";
+    let quizzes = [];
+    let currentQuiz = null;
+    let currentQuestionIndex = 0;
+  
+    async function getAllQuizzes() {
+      let response = await fetch(host + "/quizzes");
+      let result = await response.json();
+      return result;
+    }
+  
+    async function displayQuizzes() {
+      quizzes = await getAllQuizzes();
+      let quizList = document.getElementById("quizList");
+      quizList.innerHTML = "";
+  
+      quizzes.forEach((quiz) => {
+        let div = document.createElement("div");
+        div.className = "card";
+        div.innerHTML = `
+          <div class="container">
+            <h4><b>${quiz.id}</b></h4> 
+            <p>Title:<br>${quiz.title}</p>
+            <p>Number of Questions:<br>${quiz.questionIds.length}</p>
+            <button onclick="startQuiz(${quiz.id})">Start Quiz</button>
+          </div>
+        `;
+        quizList.appendChild(div);
+      });
+    }
+  
+    async function startQuiz(quizId) {
+      currentQuiz = quizzes.find(q => q.id === quizId);
+      currentQuiz.score = 0; // Initialize score to 0
+      currentQuestionIndex = 0;
+  
+      document.getElementById("quizContainer").classList.add("hidden");
+      document.getElementById("questionContainer").classList.remove("hidden");
+      document.getElementById("navbar").classList.add("hidden"); // Hide navigation bar
+  
+      displayNextQuestion();
+    }
+  
+    async function displayNextQuestion() {
+      let quizQuestions = document.getElementById("quizQuestions");
+      quizQuestions.innerHTML = "";
+  
+      if (currentQuestionIndex < currentQuiz.questionIds.length) {
+        let questionId = currentQuiz.questionIds[currentQuestionIndex];
+        let question = await getQuestionById(questionId);
+  
+        let div = document.createElement("div");
+        div.className = "card";
+        div.innerHTML = `
+          <div class="container">
+            <h3>Question ${currentQuestionIndex + 1}</h3>
+            <img src="${host}/questions/${questionId}/image" alt="Question Image" style="width:100%">
+            <p>${question.description}</p>
+            <form id="questionForm">
+              ${question.choices.map((choice, index) => `
+                <input type="radio" id="q${questionId}Option${index}" name="answer" value="${choice}" required>
+                <label for="q${questionId}Option${index}">${choice}</label><br>
+              `).join('')}
+            </form>
+            <button onclick="submitAnswer()">Submit</button>
+          </div>
+        `;
+        quizQuestions.appendChild(div);
+      } else {
+        let score = calculateScore();
+        let div = document.createElement("div");
+        div.innerHTML = `
+          <h3>Quiz Completed!</h3>
+          <p>Your score: ${score}</p>
+          <button onclick="returnToQuizList()">Return to Quiz List</button>
+        `;
+        quizQuestions.appendChild(div);
+        document.getElementById("navbar").classList.remove("hidden"); // Show navigation bar after quiz completion
+      }
+    }
+  
+    async function getQuestionById(questionId) {
+      let response = await fetch(`${host}/questions/${questionId}`);
+      let question = await response.json();
+      return question;
+    }
+  
+    function submitAnswer() {
+      let form = document.getElementById("questionForm");
+      let selectedAnswer = form.elements["answer"].value;
+      let correctAnswer = currentQuiz.questions[currentQuestionIndex].answer;
+  
+      if (selectedAnswer === correctAnswer) {
+        // Increment score by one for each correct answer
+        currentQuiz.score++;
+      }
+      
+      // Move to the next question
+      currentQuestionIndex++;
+      displayNextQuestion();
+    }
+  
+    function calculateScore() {
+      return currentQuiz.score;
+    }
+  
+    function returnToQuizList() {
+      document.getElementById("quizContainer").classList.remove("hidden");
+      document.getElementById("questionContainer").classList.add("hidden");
+      document.getElementById("navbar").classList.remove("hidden"); // Show navigation bar when returning to quiz list
+    }
+  
+    displayQuizzes();
+  </script>
   
 </body>
 </html>

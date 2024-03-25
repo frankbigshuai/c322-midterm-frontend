@@ -1,11 +1,260 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Document</title>
-</head>
-<body>
-  
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Add a question</title>
+    <link rel="stylesheet" href="navbar.css" />
+    <link rel="stylesheet" href="general.css" />
+    <link rel="stylesheet" href="cards.css" />
+
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        min-height: 100vh;
+      }
+
+      .navbar {
+        flex: none; /* Don't allow the navbar to grow or shrink */
+      }
+
+      .container {
+        display: flex;
+        flex: 1; /* Allow the container to take remaining vertical space */
+      }
+
+      .left-column {
+        flex: 2;
+        padding: 20px;
+      }
+
+      .right-column {
+        flex: 1;
+        padding: 20px;
+      }
+
+      .cards {
+        margin-top: 20px;
+      }
+
+      .card {
+        margin-bottom: 20px;
+        cursor: pointer; /* Add pointer cursor to indicate clickability */
+      }
+
+      .selected {
+        background-color: lightblue; /* Style to indicate selected question */
+      }
+    </style>
+  </head>
+  <body>
+    <div class="navbar">
+      <ul class="topnav">
+        <li><a href="index.html">Home</a></li>
+        <li><a class="active" href="add-question.html">Add questions</a></li>
+        <li><a href="make-a-quiz.html">Create a quiz</a></li>
+        <li><a href="take-a-quiz.html">Take a quiz</a></li>
+        <li class="right"><a href="#about">About</a></li>
+      </ul>
+    </div>
+
+    <div class="container">
+      <div class="left-column" id="left-column">
+        <!-- Left column content -->
+        <div id="list" class="cards"></div>
+      </div>
+
+      <div class="right-column" id="right-column">
+        <!-- Right column content -->
+        <h2>New Quiz</h2>
+        <label for="quizTitle">Quiz Title:</label><br />
+        <input type="text" id="quizTitle" name="quizTitle" required /><br />
+
+        <button onclick="saveChanges()">Save Your Changes</button>
+        <button onclick="saveAndStartNew()">
+          Save This Quiz and Start a New One
+        </button>
+
+        <p>
+          If you want to remove a question from the quiz, you can click on the
+          question here and it will be removed from the quiz.
+        </p>
+        <div id="selected-questions" class="cards"></div>
+      </div>
+    </div>
+
+    <script>
+      let host = "http://localhost:8080";
+      let questions = [];
+      let quiz = [];
+
+      async function getAll() {
+        let response = await fetch(host + "/questions");
+        let result = await response.json();
+        return result;
+      }
+
+      async function displayTheQuestions() {
+        if (questions.length == 0) {
+          questions = await getAll();
+        }
+
+        let list = document.getElementById("list");
+        list.innerHTML = "";
+
+        questions.forEach((question) => {
+          let div = document.createElement("div");
+          div.className = "card";
+          let innerHtml = `
+        <img src="${host}/questions/${question.id}/image" alt="question" style="width:100%">
+        <div class="container">
+            <h4><b>${question.id}</b></h4>
+            <p>${question.description}</p>
+            <form>
+                <input type="radio" id="q${question.id}ptionA" name="q${question.id}Answer" value="A">
+                <label for="q${question.id}ptionA">${question.choices[0]}</label><br>
+                <input type="radio" id="q${question.id}ptionB" name="q${question.id}Answer" value="B">
+                <label for="q${question.id}ptionB">${question.choices[1]}</label><br>
+                <input type="radio" id="q${question.id}ptionC" name="q${question.id}Answer" value="C">
+                <label for="q${question.id}ptionC">${question.choices[2]}</label><br>
+            </form>
+        </div>
+        `;
+          div.innerHTML = innerHtml;
+          div.addEventListener("click", () => selectQuestion(question.id, div));
+          list.appendChild(div);
+        });
+      }
+
+      function selectQuestion(questionId, card) {
+        let selectedQuestions = document.getElementById("selected-questions");
+        let questionCard = card.cloneNode(true);
+        questionCard.classList.add("selected");
+        questionCard.removeAttribute("style");
+        questionCard.removeEventListener("click", () =>
+          selectQuestion(questionId, card)
+        );
+        questionCard.addEventListener("click", () =>
+          unselectQuestion(questionId, questionCard)
+        );
+        selectedQuestions.appendChild(questionCard);
+        card.remove();
+
+        // Store the selected question ID
+        selectedQuestions.setAttribute(
+          "data-question-ids",
+          JSON.stringify([...getSelectedQuestionIds(), questionId])
+        );
+      }
+
+      function unselectQuestion(questionId, card) {
+        let leftColumn = document.getElementById("left-column");
+        let questionCard = card.cloneNode(true);
+        questionCard.classList.remove("selected");
+        questionCard.removeAttribute("style");
+        questionCard.removeEventListener("click", () =>
+          unselectQuestion(questionId, card)
+        );
+        questionCard.addEventListener("click", () =>
+          selectQuestion(questionId, questionCard)
+        );
+        leftColumn.appendChild(questionCard);
+        card.remove();
+
+        // Remove the unselected question ID
+        let selectedQuestionIds = getSelectedQuestionIds().filter(
+          (id) => id !== questionId
+        );
+        document
+          .getElementById("selected-questions")
+          .setAttribute(
+            "data-question-ids",
+            JSON.stringify(selectedQuestionIds)
+          );
+      }
+      function getSelectedQuestionIds() {
+        let selectedQuestions = document.getElementById("selected-questions");
+        let questionIds = selectedQuestions.getAttribute("data-question-ids");
+        return questionIds ? JSON.parse(questionIds) : [];
+      }
+
+      async function saveChanges() {
+        const quizTitle = document.getElementById("quizTitle").value;
+        const selectedQuestionIds = getSelectedQuestionIds();
+        const quizData = {
+          title: quizTitle,
+          questionIds: selectedQuestionIds,
+        };
+        const response = await fetch(`${host}/quizzes`);
+        const existingQuizzes = await response.json();
+
+        const nextId = existingQuizzes.length + 1;
+
+        fetch(`${host}/quizzes/${nextId}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(quizData),
+        })
+          .then((response) => {
+            if (response.ok) {
+              alert("Quiz saved successfully!");
+            } else {
+              throw new Error("Failed to save quiz");
+            }
+          })
+          .catch((error) => {
+            console.error("Error:", error);
+            alert("Failed to save quiz");
+          });
+      }
+
+      async function saveAndStartNew() {
+        const quizTitle = document.getElementById("quizTitle").value;
+        const selectedQuestionIds = getSelectedQuestionIds();
+        const quizData = {
+          title: quizTitle,
+          questionIds: selectedQuestionIds,
+        };
+        const response = await fetch(`${host}/quizzes`);
+        const existingQuizzes = await response.json();
+
+        const nextId = existingQuizzes.length + 1;
+
+        fetch(`${host}/quizzes/${nextId}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(quizData),
+        })
+          .then((response) => {
+            if (response.ok) {
+              alert("Quiz saved successfully!");
+
+              // Remove selected questions from the DOM
+              const selectedQuestions = document.querySelectorAll(".selected");
+              selectedQuestions.forEach((questionCard) => {
+                questionCard.remove();
+              });
+
+              // Reload the page to start a new quiz
+              location.reload();
+            } else {
+              throw new Error("Failed to save quiz");
+            }
+          })
+          .catch((error) => {
+            console.error("Error:", error);
+            alert("Failed to save quiz");
+          });
+      }
+
+      displayTheQuestions();
+    </script>
+  </body>
 </html>
