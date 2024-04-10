@@ -87,7 +87,7 @@
     </div>
 
     <script>
-      let host = "https://midterm-latest-ql4w.onrender.com";
+      let host = "https://midterm-latest-ql4w.onrender.com/";
       let questions = [];
       let quiz = [];
 
@@ -236,13 +236,11 @@
             if (response.ok) {
               alert("Quiz saved successfully!");
 
-              // Remove selected questions from the DOM
               const selectedQuestions = document.querySelectorAll(".selected");
               selectedQuestions.forEach((questionCard) => {
                 questionCard.remove();
               });
 
-              // Reload the page to start a new quiz
               location.reload();
             } else {
               throw new Error("Failed to save quiz");
